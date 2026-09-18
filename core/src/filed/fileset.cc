@@ -558,6 +558,13 @@ static int SetOptionsAndFlags(findFOPTS* fo, const char* opts)
           SetBit(FO_COMPRESS, fo->flags);
           fo->Compress_algo = COMPRESS_LZO1X;
           fo->Compress_level = 1; /* not used with LZO */
+        } else if (*p == 's') {
+          p++; /* Skip s */
+          if (*p >= '1' && *p <= '9') {
+            SetBit(FO_COMPRESS, fo->flags);
+            fo->Compress_algo = COMPRESS_ZSTD;
+            fo->Compress_level = *p - '0';
+          }
         } else if (*p == 'f') {
           p++;
           if (*p == 'f') {

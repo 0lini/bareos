@@ -210,6 +210,15 @@ if(NOT client-only)
                                Bareos::SQL GTest::gtest_main
   )
   bareos_add_test(bool_string LINK_LIBRARIES Bareos::Lib GTest::gtest_main)
+  if(ENABLE_ZSTD)
+    bareos_add_test(
+      compression_test LINK_LIBRARIES Bareos::Lib GTest::gtest_main ZSTD::ZSTD
+    )
+  else()
+    bareos_add_test(
+      compression_test LINK_LIBRARIES Bareos::Lib GTest::gtest_main
+    )
+  endif()
   bareos_add_test(
     bsock_test_connection_setup
     ADDITIONAL_SOURCES init_openssl.cc
