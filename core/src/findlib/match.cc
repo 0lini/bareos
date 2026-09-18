@@ -324,6 +324,13 @@ void AddFnameToIncludeList(FindFilesPacket* ff, int prefixed, const char* fname)
             SetBit(FO_COMPRESS, inc->options);
             inc->algo = COMPRESS_LZO1X;
             inc->level = 1; /* Not used with LZO */
+          } else if (*rp == 's') {
+            if (rp[1] >= '1' && rp[1] <= '9') {
+              rp++; /* Skip s */
+              SetBit(FO_COMPRESS, inc->options);
+              inc->algo = COMPRESS_ZSTD;
+              inc->level = *rp - '0';
+            }
           } else if (*rp == 'f') {
             if (rp[1] == 'f') {
               rp++; /* Skip f */

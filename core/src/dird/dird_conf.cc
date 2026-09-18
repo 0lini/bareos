@@ -1935,6 +1935,10 @@ void FilesetResource::PrintConfigIncludeExcludeOptions(
           case 'o':
             send.KeyQuotedString("Compression", "LZO");
             break;
+          case 's':
+            p++; /* skip s */
+            send.KeyQuotedString("Compression", std::string("ZSTD") + *p);
+            break;
           case 'f':
             p++; /* skip f */
             switch (*p) {

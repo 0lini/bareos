@@ -124,6 +124,8 @@ bool SetupCompressionContext(b_ctx& bctx)
       case COMPRESS_FZ4L:
         [[fallthrough]];
       case COMPRESS_FZ4H:
+        [[fallthrough]];
+      case COMPRESS_ZSTD:
         bctx.ch.level = bctx.ff_pkt->Compress_level;
         break;
       default:

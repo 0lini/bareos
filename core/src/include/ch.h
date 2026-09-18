@@ -2,7 +2,7 @@
    BAREOS® - Backup Archiving REcovery Open Sourced
 
    Copyright (C) 2000-2011 Free Software Foundation Europe e.V.
-   Copyright (C) 2016-2025 Bareos GmbH & Co. KG
+   Copyright (C) 2016-2026 Bareos GmbH & Co. KG
 
    This program is Free Software; you can redistribute it and/or
    modify it under the terms of version three of the GNU Affero General Public
@@ -52,6 +52,7 @@ enum compression_type : std::uint32_t
   COMPRESS_FZFZ = compression_constant("FZFZ"),
   COMPRESS_FZ4L = compression_constant("FZ4L"),
   COMPRESS_FZ4H = compression_constant("FZ4H"),
+  COMPRESS_ZSTD = compression_constant("ZSTD"),
 };
 
 // double check our constants with the previously defined values
@@ -61,6 +62,7 @@ static_assert(0x4c5a4f58 == compression_constant("LZOX"));
 static_assert(0x465A465A == compression_constant("FZFZ"));
 static_assert(0x465A344C == compression_constant("FZ4L"));
 static_assert(0x465A3448 == compression_constant("FZ4H"));
+static_assert(0x5A535444 == compression_constant("ZSTD"));
 
 // Compression header version
 #define COMP_HEAD_VERSION 0x1
