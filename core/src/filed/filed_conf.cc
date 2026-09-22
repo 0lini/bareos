@@ -53,8 +53,25 @@
 #include "lib/tls_resource_items.h"
 
 #include <cassert>
+#include <string>
+#include <thread>
 
 namespace filedaemon {
+
+uint32_t DefaultMaximumWorkersPerJob()
+{
+  return DefaultMaximumWorkersPerJobFromCpuCount(
+      std::thread::hardware_concurrency());
+}
+
+namespace {
+const char* DefaultMaximumWorkersPerJobString()
+{
+  static const std::string value
+      = std::to_string(DefaultMaximumWorkersPerJob());
+  return value.c_str();
+}
+}  // namespace
 
 static bool SaveResource(int type, const ResourceItem* items, int pass);
 static void FreeResource(BareosResource* sres, int type);
@@ -90,7 +107,7 @@ static const ResourceItem cli_items[] = {
   { "PluginNames", CFG_TYPE_PLUGIN_NAMES, ITEM(res_client, plugin_names), {}},
   { "ScriptsDirectory", CFG_TYPE_DIR, ITEM(res_client, scripts_directory), {config::DefaultValue{PATH_BAREOS_SCRIPTDIR}, config::Description{"Path to directory containing script files"}, config::PlatformSpecific{}}},
   { "MaximumConcurrentJobs", CFG_TYPE_PINT32, ITEM(res_client, MaxConcurrentJobs), {config::DeprecatedSince{24, 0, 0}, config::DefaultValue{"1000"}}},
-  { "MaximumWorkersPerJob", CFG_TYPE_PINT32, ITEM(res_client, MaxWorkersPerJob), {config::IntroducedIn{23, 0, 0}, config::DefaultValue{"2"}, config::Description{"The maximum number of worker threads that bareos will use during backup."}}},
+  { "MaximumWorkersPerJob", CFG_TYPE_PINT32, ITEM(res_client, MaxWorkersPerJob), {config::IntroducedIn{23, 0, 0}, config::DefaultValue{DefaultMaximumWorkersPerJobString()}, config::PlatformSpecific{}, config::Description{"The maximum number of worker threads that bareos will use during backup. Defaults to the number of available CPU cores. Set to 0 to disable multithreading."}}},
   { "Messages", CFG_TYPE_RES, ITEM(res_client, messages), {config::Code{R_MSGS}}},
   { "SdConnectTimeout", CFG_TYPE_TIME, ITEM(res_client, SDConnectTimeout), {config::DefaultValue{"1800"}}},
   { "HeartbeatInterval", CFG_TYPE_TIME, ITEM(res_client, heartbeat_interval), {config::DefaultValue{"0"}}},

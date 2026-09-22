@@ -25,7 +25,13 @@
 #include "filed/filed_globals.h"
 #include "filed/filed_conf.h"
 
+#include <thread>
+
 namespace filedaemon {
+
+static_assert(DefaultMaximumWorkersPerJobFromCpuCount(0) == 2);
+static_assert(DefaultMaximumWorkersPerJobFromCpuCount(1) == 1);
+static_assert(DefaultMaximumWorkersPerJobFromCpuCount(8) == 8);
 
 TEST(ConfigParser, test_filed_config)
 {
@@ -42,6 +48,31 @@ TEST(ConfigParser, test_filed_config)
   ASSERT_TRUE(my_config->ParseConfig());
 
   my_config->DumpResources(PrintMessage, NULL);
+
+  delete my_config;
+}
+
+TEST(ConfigParser, MaximumWorkersPerJob_defaults_to_cpu_count)
+{
+  OSDependentInit();
+
+#if HAVE_WIN32
+  WSA_Init();
+#endif
+
+  std::string path_to_config_file
+      = std::string("configs/bareos-configparser-tests");
+  my_config = InitFdConfig(path_to_config_file.c_str(), M_ERROR_TERM);
+
+  ASSERT_TRUE(my_config->ParseConfig());
+
+  auto* client
+      = dynamic_cast<ClientResource*>(my_config->GetNextRes(R_CLIENT, nullptr));
+  ASSERT_NE(client, nullptr);
+  EXPECT_FALSE(client->IsMemberPresent("MaximumWorkersPerJob"));
+  EXPECT_EQ(client->MaxWorkersPerJob, DefaultMaximumWorkersPerJob());
+  EXPECT_EQ(client->MaxWorkersPerJob, DefaultMaximumWorkersPerJobFromCpuCount(
+                                          std::thread::hardware_concurrency()));
 
   delete my_config;
 }
