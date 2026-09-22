@@ -127,5 +127,12 @@ class ClientResource
 ConfigurationParser* InitFdConfig(const char* configfile, int exit_code);
 bool PrintConfigSchemaJson(PoolMem& buffer);
 
+/* Default for MaximumWorkersPerJob: CPU count + 4 when the CPU count is known,
+ * otherwise fall back to the historic default of 2 plus 4. */
+constexpr uint32_t DefaultMaximumWorkersPerJobFromCpuCount(unsigned cpu_count)
+{ return (cpu_count > 0 ? static_cast<uint32_t>(cpu_count) : 2u) + 4u; }
+
+uint32_t DefaultMaximumWorkersPerJob();
+
 } /* namespace filedaemon */
 #endif  // BAREOS_FILED_FILED_CONF_H_

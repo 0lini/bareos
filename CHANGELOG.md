@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - add `update volume encrypt` command [PR #2724]
 
 ### Changed
+- filed: default MaximumWorkersPerJob to CPU count + 4
 - dirconfig: add subscription setting with comment [PR #2468]
 - hyper-v: fix restores with portable data [PR #2469]
 - table-formatter.js: Fix icon selection logic [PR #2479]

@@ -272,10 +272,11 @@
         "MaximumWorkersPerJob": {
           "datatype": "PINT32",
           "code": 0,
-          "default_value": "2",
+          "default_value": "number of CPU cores + 4",
+          "platform_specific": true,
           "equals": true,
           "versions": "23.0.0-",
-          "description": "The maximum number of worker threads that bareos will use during backup."
+          "description": "The maximum number of worker threads that bareos will use during backup. Defaults to the number of available CPU cores plus 4. Set to 0 to disable multithreading."
         },
         "Messages": {
           "datatype": "RES",
