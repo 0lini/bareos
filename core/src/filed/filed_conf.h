@@ -127,10 +127,10 @@ class ClientResource
 ConfigurationParser* InitFdConfig(const char* configfile, int exit_code);
 bool PrintConfigSchemaJson(PoolMem& buffer);
 
-/* Default for MaximumWorkersPerJob: use the CPU count when known, otherwise
- * fall back to the historic default of 2. */
+/* Default for MaximumWorkersPerJob: CPU count + 4 when the CPU count is known,
+ * otherwise fall back to the historic default of 2 plus 4. */
 constexpr uint32_t DefaultMaximumWorkersPerJobFromCpuCount(unsigned cpu_count)
-{ return cpu_count > 0 ? static_cast<uint32_t>(cpu_count) : 2; }
+{ return (cpu_count > 0 ? static_cast<uint32_t>(cpu_count) : 2u) + 4u; }
 
 uint32_t DefaultMaximumWorkersPerJob();
 

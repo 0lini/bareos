@@ -29,9 +29,9 @@
 
 namespace filedaemon {
 
-static_assert(DefaultMaximumWorkersPerJobFromCpuCount(0) == 2);
-static_assert(DefaultMaximumWorkersPerJobFromCpuCount(1) == 1);
-static_assert(DefaultMaximumWorkersPerJobFromCpuCount(8) == 8);
+static_assert(DefaultMaximumWorkersPerJobFromCpuCount(0) == 6);
+static_assert(DefaultMaximumWorkersPerJobFromCpuCount(1) == 5);
+static_assert(DefaultMaximumWorkersPerJobFromCpuCount(8) == 12);
 
 TEST(ConfigParser, test_filed_config)
 {
