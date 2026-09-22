@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - add `update volume encrypt` command [PR #2724]
 
 ### Changed
-- filed: default MaximumWorkersPerJob to CPU count
+- filed: default MaximumWorkersPerJob to CPU count [PR #2]
 - dirconfig: add subscription setting with comment [PR #2468]
 - hyper-v: fix restores with portable data [PR #2469]
 - table-formatter.js: Fix icon selection logic [PR #2479]
@@ -1412,6 +1412,7 @@ If you want to migrate from your manually configured disk autochanger to simply 
 [Issue #1480]: https://bugs.bareos.org/view.php?id=1480
 [Issue #1489]: https://bugs.bareos.org/view.php?id=1489
 [Issue #1965]: https://bugs.bareos.org/view.php?id=1965
+[PR #2]: https://github.com/bareos/bareos/pull/2
 [PR #383]: https://github.com/bareos/bareos/pull/383
 [PR #384]: https://github.com/bareos/bareos/pull/384
 [PR #385]: https://github.com/bareos/bareos/pull/385
