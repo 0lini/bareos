@@ -682,7 +682,7 @@ When parsing the resource directives, Bareos classifies the data according to th
 
 .. config:datatype:: COMPRESSION_ALGORITHM
 
-   The following values are allowed: `GZIP` (GZIP1 to GZIP9), `LZO`, `LZFAST` (deprecated :sinceVersion:`19.2.: lzfast`), `LZ4`, `LZ4HC`.
+   The following values are allowed: `GZIP` (GZIP1 to GZIP9), `LZO`, `LZFAST` (deprecated :sinceVersion:`19.2.: lzfast`), `LZ4`, `LZ4HC`, `ZSTD` (ZSTD1 to ZSTD22).
 
    See :config:option:`dir/fileset/include/options/compression`.
 

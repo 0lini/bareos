@@ -1588,6 +1588,10 @@ static inline void ClearCompressionFlagInFileset(JobControlRecord* jcr)
             case COMPRESS_FZ4L:
             case COMPRESS_FZ4H:
               break;
+#if defined(HAVE_ZSTD)
+            case COMPRESS_ZSTD:
+              break;
+#endif
             default:
               /* When we get here its because the wanted compression protocol is
                * not supported with the current compile options. */
