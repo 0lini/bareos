@@ -163,6 +163,10 @@ static const char* record_compression_to_str(PoolMem& resultbuffer,
           compression_to_str(resultbuffer, "FZ4H", comp_len, comp_level,
                              comp_version);
           break;
+        case COMPRESS_ZSTD:
+          compression_to_str(resultbuffer, "ZSTD", comp_len, comp_level,
+                             comp_version);
+          break;
         default:
           tmp.bsprintf(
               T_("Compression algorithm 0x%x found, but not supported!\n"),

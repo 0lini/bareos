@@ -49,6 +49,7 @@
 #include "lib/resource_item.h"
 #define NEED_JANSSON_NAMESPACE 1
 #include "include/bareos.h"
+#include "include/ch.h"
 #include "dird.h"
 #include "dird/inc_conf.h"
 #include "dird/date_time.h"
@@ -677,9 +678,7 @@ json_t* json_datatype_header(const int type, const char* typeclass)
 }
 
 json_t* json_datatype(const int type)
-{
-  return json_datatype_header(type, NULL);
-}
+{ return json_datatype_header(type, NULL); }
 
 json_t* json_datatype(const int type, s_kw items[])
 {
@@ -1935,6 +1934,19 @@ void FilesetResource::PrintConfigIncludeExcludeOptions(
           case 'o':
             send.KeyQuotedString("Compression", "LZO");
             break;
+          case 's': {
+            p++; /* skip s */
+            uint32_t zstd_level = 0;
+            if (ParseZstdConfiguredLevel(&p, &zstd_level)) {
+              send.KeyQuotedString(
+                  "Compression",
+                  std::string("ZSTD") + std::to_string(zstd_level));
+            } else {
+              Emsg1(M_ERROR, 0,
+                    T_("Unknown compression include/exclude option: %c\n"), *p);
+            }
+            break;
+          }
           case 'f':
             p++; /* skip f */
             switch (*p) {

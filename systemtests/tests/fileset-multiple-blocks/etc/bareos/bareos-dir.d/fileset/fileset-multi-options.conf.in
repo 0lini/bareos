@@ -39,9 +39,15 @@ FileSet {
      }
      Options {
         Signature   = XXH128
-        Compression = LZ4
+        Compression = ZSTD
         Wilddir     = @tmpdir@/data-multi-options/*7
         Wild        = @tmpdir@/data-multi-options/*7/*
+     }
+     Options {
+        Signature   = XXH128
+        Compression = ZSTD22
+        Wilddir     = @tmpdir@/data-multi-options/*8
+        Wild        = @tmpdir@/data-multi-options/*8/*
      }
      Options {
         Exclude     = yes

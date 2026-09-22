@@ -697,6 +697,9 @@ message(
   "   LZO2 support:                 ${LZO2_FOUND} ${LZO2_INCLUDE_DIRS} ${LZO2_LIBRARIES} "
 )
 message(
+  "   ZSTD support:                 ${ZSTD_FOUND} ${ZSTD_INCLUDE_DIR} ${ZSTD_LIBRARY} "
+)
+message(
   "   JANSSON support:              ${JANSSON_FOUND} ${JANSSON_VERSION_STRING} ${JANSSON_INCLUDE_DIRS} ${JANSSON_LIBRARIES}"
 )
 message(

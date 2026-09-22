@@ -160,6 +160,29 @@ static struct s_fs_opt FS_options[]
        {"lzfast", INC_KW_COMPRESSION, "Zff"},
        {"lz4", INC_KW_COMPRESSION, "Zf4"},
        {"lz4hc", INC_KW_COMPRESSION, "Zfh"},
+       {"zstd", INC_KW_COMPRESSION, "Zs3"},
+       {"zstd1", INC_KW_COMPRESSION, "Zs1"},
+       {"zstd2", INC_KW_COMPRESSION, "Zs2"},
+       {"zstd3", INC_KW_COMPRESSION, "Zs3"},
+       {"zstd4", INC_KW_COMPRESSION, "Zs4"},
+       {"zstd5", INC_KW_COMPRESSION, "Zs5"},
+       {"zstd6", INC_KW_COMPRESSION, "Zs6"},
+       {"zstd7", INC_KW_COMPRESSION, "Zs7"},
+       {"zstd8", INC_KW_COMPRESSION, "Zs8"},
+       {"zstd9", INC_KW_COMPRESSION, "Zs9"},
+       {"zstd10", INC_KW_COMPRESSION, "Zs10"},
+       {"zstd11", INC_KW_COMPRESSION, "Zs11"},
+       {"zstd12", INC_KW_COMPRESSION, "Zs12"},
+       {"zstd13", INC_KW_COMPRESSION, "Zs13"},
+       {"zstd14", INC_KW_COMPRESSION, "Zs14"},
+       {"zstd15", INC_KW_COMPRESSION, "Zs15"},
+       {"zstd16", INC_KW_COMPRESSION, "Zs16"},
+       {"zstd17", INC_KW_COMPRESSION, "Zs17"},
+       {"zstd18", INC_KW_COMPRESSION, "Zs18"},
+       {"zstd19", INC_KW_COMPRESSION, "Zs19"},
+       {"zstd20", INC_KW_COMPRESSION, "Zs20"},
+       {"zstd21", INC_KW_COMPRESSION, "Zs21"},
+       {"zstd22", INC_KW_COMPRESSION, "Zs22"},
        {"blowfish", INC_KW_ENCRYPTION, "Eb"},
        {"3des", INC_KW_ENCRYPTION, "E3"},
        {"aes128", INC_KW_ENCRYPTION, "Ea1"},
@@ -317,6 +340,11 @@ bool FindUsedCompressalgos(PoolMem* compressalgos, JobControlRecord* jcr)
               if (fs_opt->keyword != INC_KW_COMPRESSION) { continue; }
 
               if (bstrncmp(k, fs_opt->option, strlen(fs_opt->option))) {
+                /* Avoid prefix matches on multi-digit ZSTD levels
+                 * (e.g. "Zs2" must not match "Zs22"). */
+                char after = k[strlen(fs_opt->option)];
+                if (after >= '0' && after <= '9') { continue; }
+
                 if (cnt > 0) {
                   compressalgos->strcat(",");
                 } else {
@@ -1099,13 +1127,9 @@ void StoreInc(lexer* lc, const ResourceItem* item, int index, int pass)
 }
 
 json_t* json_incexc(const int type)
-{
-  return json_datatype(type, newinc_items);
-}
+{ return json_datatype(type, newinc_items); }
 
 json_t* json_options(const int type)
-{
-  return json_datatype(type, options_items);
-}
+{ return json_datatype(type, options_items); }
 
 } /* namespace directordaemon */

@@ -644,7 +644,7 @@ The directives within an Options resource may be one of the following:
 
 .. config:option:: dir/fileset/include/options/compression
 
-   :type: <GZIP|GZIP1|...|GZIP9|LZO|LZFAST|LZ4|LZ4HC>
+   :type: <GZIP|GZIP1|...|GZIP9|LZO|LZFAST|LZ4|LZ4HC|ZSTD|ZSTD1|...|ZSTD22>
 
    Configures the software compression to be used by the File Daemon.
    The compression is done on a file by file basis.
@@ -656,7 +656,7 @@ The directives within an Options resource may be one of the following:
    as compression is done on the File Daemon.
    In most cases, :strong:`LZ4` is the best choice, because it is relatively fast.
    If the compression rate of :strong:`LZ4` isn't good enough,
-   you might consider :strong:`LZ4HC`.
+   you might consider :strong:`LZ4HC` or :strong:`ZSTD`.
    However, using Bareos software compression and device hardware compression together
    is not advised, as trying to compress precompressed data is a very CPU-intense task
    and probably end up in even larger data.
@@ -724,6 +724,26 @@ The directives within an Options resource may be one of the following:
         Both LZ4 and LZ4HC have the same decompression speed which is about twice
         the speed of the LZO compression. So for a restore both LZ4 and LZ4HC are
         good candidates.
+
+   ZSTD
+        All files saved will be software compressed using the Zstandard
+        compression format.
+
+        Specifying :strong:`ZSTD` uses the default compression level 3
+        (i.e. :strong:`ZSTD` is identical to :strong:`ZSTD3`).
+        If you want a different compression
+        level (1 through 22), you can specify it by appending the level number
+        with no intervening spaces to :strong:`ZSTD`.
+        Thus :strong:`compression=ZSTD1` would give minimum compression
+        but the fastest algorithm, and :strong:`compression=ZSTD22`
+        would give the highest level of compression at the cost of more CPU
+        and memory.
+
+        Levels 20–22 are Zstandard "ultra" modes and can use significantly
+        more memory than lower levels.
+
+        ZSTD typically offers a better compression ratio than LZ4 while remaining
+        fast enough for most backup workloads.
 
 
 
