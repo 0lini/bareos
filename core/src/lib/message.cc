@@ -1234,15 +1234,15 @@ void Jmsg(JobControlRecord* jcr, int type, utime_t mtime, const char* fmt, ...)
     case M_FATAL:
       Mmsg(buf, T_("%s JobId %" PRIu32 ": Fatal error: "), my_name, JobId);
       if (jcr) { jcr->setJobStatusWithPriorityCheck(JS_FatalError); }
-      if (jcr && jcr->JobErrors == 0) { jcr->JobErrors = 1; }
+      if (jcr) { jcr->EnsureJobErrors(); }
       break;
     case M_ERROR:
       Mmsg(buf, T_("%s JobId %" PRIu32 ": Error: "), my_name, JobId);
-      if (jcr) { jcr->JobErrors++; }
+      if (jcr) { jcr->IncrementJobErrors(); }
       break;
     case M_WARNING:
       Mmsg(buf, T_("%s JobId %" PRIu32 ": Warning: "), my_name, JobId);
-      if (jcr) { jcr->JobWarnings++; }
+      if (jcr) { jcr->IncrementJobWarnings(); }
       break;
     case M_SECURITY:
       Mmsg(buf, T_("%s JobId %" PRIu32 ": Security violation: "), my_name,

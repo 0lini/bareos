@@ -79,6 +79,7 @@ typedef void(JCR_free_HANDLER)(JobControlRecord* jcr);
 class JobControlRecord {
  private:
   std::mutex mutex_; /**< Jcr mutex */
+  std::mutex counter_mutex_; /**< Protects counters updated by several threads */
   std::atomic<int32_t> use_count_{};                   /**< Use count */
   std::atomic<int32_t> JobStatus_{}; /**< ready, running, blocked, terminated */
   int32_t JobType_{};            /**< Backup, restore, verify ... */
@@ -112,6 +113,30 @@ class JobControlRecord {
   JobControlRecord& operator=(const JobControlRecord&& other) = delete;
 
   [[nodiscard]] std::mutex& mutex_guard() { return mutex_; }
+
+  /* Counter updates that may happen concurrently, e.g. from the walker and
+   * the backup thread of the file daemon.  Returns the previous value. */
+  uint32_t IncrementJobErrors()
+  {
+    std::lock_guard l{counter_mutex_};
+    return JobErrors++;
+  }
+  void IncrementJobWarnings()
+  {
+    std::lock_guard l{counter_mutex_};
+    ++JobWarnings;
+  }
+  // a fatal error counts as error, but only if there was none before
+  void EnsureJobErrors()
+  {
+    std::lock_guard l{counter_mutex_};
+    if (JobErrors == 0) { JobErrors = 1; }
+  }
+  void AddReadBytes(uint64_t bytes)
+  {
+    std::lock_guard l{counter_mutex_};
+    ReadBytes += bytes;
+  }
 
   void IncUseCount(void)
   {

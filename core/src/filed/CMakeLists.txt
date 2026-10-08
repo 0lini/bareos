@@ -33,6 +33,8 @@ add_library(fd_objects_common OBJECT)
 target_sources(
   fd_objects_common
   PRIVATE accurate.cc
+          backup_progress.cc
+          backup_walker.cc
           authenticate.cc
           crypto.cc
           evaluate_job_command.cc

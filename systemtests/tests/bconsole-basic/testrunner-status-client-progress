@@ -1,0 +1,100 @@
+#!/bin/bash
+set -e
+set -o pipefail
+set -u
+#
+# check that "status client" reports the progress of a running backup
+#
+TestName="$(basename "$(pwd)")"
+export TestName
+
+#shellcheck source=../../environment.in
+. ./environment
+
+JobName=slow-backup-bareos-fd
+#shellcheck source=../../scripts/functions
+. "${BAREOS_SCRIPTS_DIR}"/functions
+
+start_test
+
+data="$tmp/progress-data"
+rm -rf "$data"
+mkdir -p "$data/sub"
+for i in $(seq 1 10); do
+  dd if=/dev/urandom of="$data/file$i" bs=1M count=1 status=none
+  dd if=/dev/urandom of="$data/sub/file$i" bs=1M count=1 status=none
+done
+
+backup_log=$tmp/progress-backup.out
+status_log=$tmp/progress-status.out
+api_log=$tmp/progress-api.out
+rm -f "$backup_log" "$status_log" "$api_log"
+
+cat <<END_OF_DATA >"$tmp/bconcmds"
+@$out ${NULL_DEV}
+messages
+@$out $backup_log
+run job=$JobName level=Full yes
+quit
+END_OF_DATA
+
+run_bconsole
+
+# the job runs at 2 MB/s, so it is busy for about 10 seconds
+found=""
+for _ in $(seq 1 60); do
+  cat <<END_OF_DATA >"$tmp/bconcmds"
+@$out $status_log
+status client=bareos-fd
+@$out $api_log
+.status client=bareos-fd running
+quit
+END_OF_DATA
+  run_bconsole
+  if grep -q "Progress=[0-9]*% .*Bytes=[0-9,]*/" "$status_log"; then
+    found=yes
+    break
+  fi
+  sleep 0.5
+done
+
+cat <<END_OF_DATA >"$tmp/bconcmds"
+@$out $backup_log
+wait
+messages
+quit
+END_OF_DATA
+run_bconsole
+
+check_for_zombie_jobs storage=File client=bareos-fd
+
+if [[ -z $found ]]; then
+  echo "status client did not show the progress of the running job" >&2
+  cat "$status_log" >&2
+  estat=1
+else
+  # once the walk is done, the totals are those of the whole fileset:
+  # 20 files with 1 MiB each and 2 directories
+  if grep -q "Progress=.*(still scanning)" "$status_log"; then
+    echo "walker still running, skipping check of the totals"
+  else
+    expect_grep "Files=[0-9,]*/22 Bytes=[0-9,]*/20,971,520" \
+      "$status_log" \
+      "status client reported wrong totals."
+  fi
+  expect_grep "^ FilesDiscovered=[0-9]" \
+    "$api_log" \
+    "api status is missing FilesDiscovered."
+  expect_grep "^ BytesProcessed=[0-9]" \
+    "$api_log" \
+    "api status is missing BytesProcessed."
+  expect_grep "^ WalkFinished=[01]" \
+    "$api_log" \
+    "api status is missing WalkFinished."
+fi
+
+expect_grep "Backup OK" \
+  "$backup_log" \
+  "Backup was not successful."
+
+end_test

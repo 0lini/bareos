@@ -365,7 +365,7 @@ static inline bool HaveIgnoredir(FindFilesPacket* ff_pkt)
 }
 
 // Restore file times.
-static inline void RestoreFileTimes(FindFilesPacket* ff_pkt, char* fname)
+void RestoreFileTimes(const FindFilesPacket* ff_pkt, const char* fname)
 {
 #if !defined(HAVE_WIN32)
   struct timeval restore_times[2];
@@ -414,6 +414,37 @@ static inline int process_hfsattributes(JobControlRecord* jcr,
 }
 #endif
 
+HardlinkState ResolveHardlink(FindFilesPacket* ff_pkt, const char* fname)
+{
+  if (!ff_pkt->linkhash) { ff_pkt->linkhash = new LinkHash(10000); }
+
+  auto [iter, inserted] = ff_pkt->linkhash->try_emplace(
+      Hardlink{ff_pkt->statp.st_dev, ff_pkt->statp.st_ino}, fname);
+  CurLink& hl = iter->second;
+
+  if (hl.FileIndex == 0) {
+    // no file backed up yet
+    ff_pkt->linked = &hl;
+    return HardlinkState::kFirst;
+  }
+
+  if (bstrcmp(hl.name.c_str(), fname)) {
+    Dmsg2(400, "== Name identical skip FI=%" PRIu32 " file=%s\n", hl.FileIndex,
+          fname);
+    return HardlinkState::kSameName;
+  }
+
+  // some other file was already backed up!
+  ff_pkt->link_or_dir = hl.name.data();
+  ff_pkt->type = FT_LNKSAVED; /* Handle link, file already saved */
+  ff_pkt->LinkFI = hl.FileIndex;
+  ff_pkt->linked = NULL;
+  ff_pkt->digest = hl.digest.data();
+  ff_pkt->digest_stream = hl.digest_stream;
+  ff_pkt->digest_len = hl.digest.size();
+  return HardlinkState::kAlreadySaved;
+}
+
 // Handling of a hardlinked file.
 static inline int process_hardlink(JobControlRecord* jcr,
                                    FindFilesPacket* ff_pkt,
@@ -426,36 +457,21 @@ static inline int process_hardlink(JobControlRecord* jcr,
 {
   int rtn_stat = 0;
 
-  if (!ff_pkt->linkhash) { ff_pkt->linkhash = new LinkHash(10000); }
-
-  auto [iter, inserted] = ff_pkt->linkhash->try_emplace(
-      Hardlink{ff_pkt->statp.st_dev, ff_pkt->statp.st_ino}, fname);
-  CurLink& hl = iter->second;
-
-  if (hl.FileIndex == 0) {
-    // no file backed up yet
-    ff_pkt->linked = &hl;
-    *done = false;
-  } else if (bstrcmp(hl.name.c_str(), fname)) {
-    // If we have already backed up the hard linked file don't do it again
-    Dmsg2(400, "== Name identical skip FI=%" PRIu32 " file=%s\n", hl.FileIndex,
-          fname);
-    *done = true;
-    rtn_stat = 1; /* ignore */
-  } else {
-    // some other file was already backed up!
-    ff_pkt->link_or_dir = hl.name.data();
-    ff_pkt->type = FT_LNKSAVED; /* Handle link, file already saved */
-    ff_pkt->LinkFI = hl.FileIndex;
-    ff_pkt->linked = NULL;
-    ff_pkt->digest = hl.digest.data();
-    ff_pkt->digest_stream = hl.digest_stream;
-    ff_pkt->digest_len = hl.digest.size();
-
-    rtn_stat = HandleFile(jcr, ff_pkt, top_level);
-    Dmsg3(400, "FT_LNKSAVED FI=%d LinkFI=%" PRIu32 " file=%s\n",
-          ff_pkt->FileIndex, hl.FileIndex, hl.name.c_str());
-    *done = true;
+  switch (ResolveHardlink(ff_pkt, fname)) {
+    case HardlinkState::kFirst:
+      *done = false;
+      break;
+    case HardlinkState::kSameName:
+      // If we have already backed up the hard linked file don't do it again
+      *done = true;
+      rtn_stat = 1; /* ignore */
+      break;
+    case HardlinkState::kAlreadySaved:
+      rtn_stat = HandleFile(jcr, ff_pkt, top_level);
+      Dmsg3(400, "FT_LNKSAVED FI=%d LinkFI=%" PRIu32 " file=%s\n",
+            ff_pkt->FileIndex, ff_pkt->LinkFI, ff_pkt->link_or_dir);
+      *done = true;
+      break;
   }
 
   return rtn_stat;

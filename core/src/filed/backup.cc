@@ -37,6 +37,7 @@
 #include "filed/crypto.h"
 #include "filed/heartbeat.h"
 #include "filed/backup.h"
+#include "filed/backup_walker.h"
 #include "filed/filed_jcr_impl.h"
 #include "include/ch.h"
 #include "findlib/attribs.h"
@@ -190,9 +191,9 @@ bool BlastDataToStorageDaemon(JobControlRecord* jcr, crypto_cipher_t cipher)
     jcr->fd_impl->xattr_data = std::make_unique<XattrBuildData>();
   }
 
-  // Subroutine SaveFile() is called for each file
-  if (!FindFiles(jcr, (FindFilesPacket*)jcr->fd_impl->ff, SaveFile,
-                 PluginSave)) {
+  /* A walker thread traverses the fileset and enqueues the entries,
+   * SaveFile() is called for each of them from this thread. */
+  if (!FindFilesWithWalker(jcr, jcr->fd_impl->ff, SaveFile, PluginSave)) {
     ok = false; /* error */
     jcr->setJobStatusWithPriorityCheck(JS_ErrorTerminated);
   }
@@ -250,7 +251,7 @@ static inline bool SaveRsrcAndFinder(b_save_ctx& bsctx)
         Jmsg(bsctx.jcr, M_NOTSAVED, -1,
              T_("     Cannot open resource fork for \"%s\": ERR=%s.\n"),
              bsctx.ff_pkt->fname, be.bstrerror());
-        bsctx.jcr->JobErrors++;
+        bsctx.jcr->IncrementJobErrors();
         if (IsBopen(&bsctx.ff_pkt->bfd)) { bclose(&bsctx.ff_pkt->bfd); }
       }
     }
@@ -353,7 +354,7 @@ static inline bool SetupEncryptionDigests(b_save_ctx& bsctx)
       Jmsg(bsctx.jcr, M_NOTSAVED, 0,
            T_("%s signature digest initialization failed\n"),
            stream_to_ascii(signing_algorithm));
-      bsctx.jcr->JobErrors++;
+      bsctx.jcr->IncrementJobErrors();
       goto bail_out;
     }
   }
@@ -612,7 +613,7 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
       BErrNo be;
       Jmsg(jcr, M_NOTSAVED, 0, T_("     Could not access \"%s\": ERR=%s\n"),
            ff_pkt->fname, be.bstrerror(ff_pkt->ff_errno));
-      jcr->JobErrors++;
+      jcr->IncrementJobErrors();
       return 1;
     }
     case FT_NOFOLLOW: {
@@ -620,14 +621,14 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
       Jmsg(jcr, M_NOTSAVED, 0,
            T_("     Could not follow link \"%s\": ERR=%s\n"), ff_pkt->fname,
            be.bstrerror(ff_pkt->ff_errno));
-      jcr->JobErrors++;
+      jcr->IncrementJobErrors();
       return 1;
     }
     case FT_NOSTAT: {
       BErrNo be;
       Jmsg(jcr, M_NOTSAVED, 0, T_("     Could not stat \"%s\": ERR=%s\n"),
            ff_pkt->fname, be.bstrerror(ff_pkt->ff_errno));
-      jcr->JobErrors++;
+      jcr->IncrementJobErrors();
       return 1;
     }
     case FT_DIRNOCHG:
@@ -644,7 +645,7 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
       Jmsg(jcr, M_NOTSAVED, 0,
            T_("     Could not open directory \"%s\": ERR=%s\n"), ff_pkt->fname,
            be.bstrerror(ff_pkt->ff_errno));
-      jcr->JobErrors++;
+      jcr->IncrementJobErrors();
       return 1;
     }
     case FT_DELETED:
@@ -653,7 +654,7 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
     default:
       Jmsg(jcr, M_NOTSAVED, 0, T_("     Unknown file type %d; not saved: %s\n"),
            ff_pkt->type, ff_pkt->fname);
-      jcr->JobErrors++;
+      jcr->IncrementJobErrors();
       return 1;
   }
 
@@ -770,7 +771,7 @@ int SaveFile(JobControlRecord* jcr, FindFilesPacket* ff_pkt, bool)
       BErrNo be;
       Jmsg(jcr, M_NOTSAVED, 0, T_("     Cannot open \"%s\": ERR=%s.\n"),
            ff_pkt->fname, be.bstrerror());
-      jcr->JobErrors++;
+      jcr->IncrementJobErrors();
       if (tid) {
         StopThreadTimer(tid);
         tid = NULL;
@@ -898,7 +899,7 @@ static inline bool SendDataToSd(b_ctx* bctx)
     ser_uint64(bctx->ff_pkt->bfd.offset); /* store offset in begin of buffer */
   }
 
-  bctx->jcr->ReadBytes += sd->message_length; /* count bytes read */
+  bctx->jcr->AddReadBytes(sd->message_length); /* count bytes read */
 
   // Uncompressed cipher input length
   bctx->cipher_input_len = sd->message_length;
@@ -1441,7 +1442,7 @@ bail_out:
     bctx.jcr->JobBytes
         += sendres.value_unchecked();  /* count bytes saved possibly
                                           compressed/encrypted */
-    bctx.jcr->ReadBytes += bytes_read; /* count bytes read */
+    bctx.jcr->AddReadBytes(bytes_read); /* count bytes read */
   }
   sd->msg = bctx.msgsave; /* restore read buffer */
 
@@ -1534,7 +1535,7 @@ static int send_data(JobControlRecord* jcr,
     BErrNo be;
     Jmsg(jcr, M_ERROR, 0, T_("Read error on file %s. ERR=%s\n"), ff_pkt->fname,
          be.bstrerror(ff_pkt->bfd.BErrNo));
-    if (jcr->JobErrors++ > 1000) { /* insanity check */
+    if (jcr->IncrementJobErrors() > 1000) { /* insanity check */
       Jmsg(jcr, M_FATAL, 0, T_("Too many errors. JobErrors=%" PRIu32 ".\n"),
            jcr->JobErrors);
     }
@@ -1891,7 +1892,7 @@ static void CloseVssBackupSession(JobControlRecord* jcr)
         int msg_type = M_INFO;
         if (jcr->fd_impl->pVSSClient->GetWriterState(i) < 1) {
           msg_type = M_WARNING;
-          jcr->JobErrors++;
+          jcr->IncrementJobErrors();
         }
         Jmsg(jcr, msg_type, 0, T_("VSS Writer (BackupComplete): %s\n"),
              jcr->fd_impl->pVSSClient->GetWriterInfo(i));

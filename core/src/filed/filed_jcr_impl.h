@@ -27,6 +27,7 @@
 #include "include/bareos.h"
 #include "lib/crypto.h"
 #include "lib/thread_pool.h"
+#include "filed/backup_progress.h"
 
 #include <atomic>
 
@@ -41,6 +42,7 @@ class VSSClient;
 
 namespace filedaemon {
 class BareosAccurateFilelist;
+class BackupWalker;
 class DirectorResource;
 struct save_pkt;
 }  // namespace filedaemon
@@ -93,6 +95,8 @@ struct FiledJcrImpl {
   VSSClient* pVSSClient{};        /**< VSS Client Instance */
 #endif
   thread_pool threads;
+  filedaemon::BackupProgress progress;       /**< Walker based backup progress */
+  filedaemon::BackupWalker* backup_walker{}; /**< Set while the walker runs */
 };
 /* clang-format on */
 

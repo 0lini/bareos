@@ -1628,6 +1628,32 @@ status
    for the Job I started using the "File" device is that the device is blocked waiting for media
    – that is Bareos needs you to label a Volume.
 
+   For a running backup job, :bcommand:`status client=xxx` also shows its progress:
+
+   .. code-block:: bconsole
+      :caption: status client
+
+      *<input>status client=bareos-fd</input>
+      ...
+      Running Jobs:
+      JobId 42 Job backup-bareos-fd.2026-10-08_10.15.02_04 is running.
+          Full Backup Job started: 08-Oct-26 10:15
+          Files=1,204 Bytes=5,233,151,328 Bytes/sec=87,219,188 Errors=0
+          Bwlimit=0
+          Files Examined=1,204
+          Progress=61% Files=1,204/1,950 Bytes=5,233,151,328/8,573,820,212
+          Processing file: /srv/data/images/disk2.img
+      ...
+
+   The File Daemon traverses the FileSet in a separate thread, ahead of the
+   files being backed up. :strong:`Progress` is the share of the discovered
+   bytes that has already been processed (or of the discovered entries, if
+   there is no file data). While the traversal is still running, the line ends
+   with ``(still scanning)``, as the totals keep growing and the percentage is
+   only an upper bound. :bcommand:`.status client=xxx running` reports the same
+   values as ``Progress``, ``FilesProcessed``, ``FilesDiscovered``,
+   ``BytesProcessed``, ``BytesDiscovered`` and ``WalkFinished``.
+
 status scheduler
    The command :bcommand:`status scheduler` (:sinceVersion:`12.4.4: status scheduler`) can be used
    to check when a certain schedule will trigger. This gives more information than

@@ -376,17 +376,19 @@ static int ReadDigest(BareosFilePacket* bfd,
      * jobs
      */
     if (jcr->is_JobType(JT_VERIFY)) { jcr->JobBytes += n; }
-    jcr->ReadBytes += n;
+    jcr->AddReadBytes(n);
   }
   Dmsg0(50, "=== ReadDigest END\n");
   if (n < 0) {
     BErrNo be;
     be.SetErrno(bfd->BErrNo);
-    Dmsg2(100, "Error reading file %s: ERR=%s\n", jcr->fd_impl->last_fname,
+    /* not last_fname: during a backup this runs in the walker thread, while
+     * the backup thread updates last_fname */
+    Dmsg2(100, "Error reading file %s: ERR=%s\n", ff_pkt->fname,
           be.bstrerror());
-    Jmsg(jcr, M_ERROR, 1, T_("Error reading file %s: ERR=%s\n"),
-         jcr->fd_impl->last_fname, be.bstrerror());
-    jcr->JobErrors++;
+    Jmsg(jcr, M_ERROR, 1, T_("Error reading file %s: ERR=%s\n"), ff_pkt->fname,
+         be.bstrerror());
+    jcr->IncrementJobErrors();
     return -1;
   }
   return 0;
@@ -435,7 +437,7 @@ static bool calculate_file_chksum(JobControlRecord* jcr,
 
     size = sizeof(md);
     if (DigestFile(jcr, ff_pkt, *digest) != 0) {
-      jcr->JobErrors++;
+      jcr->IncrementJobErrors();
       return false;
     }
 

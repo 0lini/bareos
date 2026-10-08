@@ -209,6 +209,12 @@ static void ListRunningJobsPlain(StatusPacket* sp)
     len = Mmsg(msg, T_("    Files Examined=%s\n"),
                edit_uint64_with_commas(njcr->fd_impl->num_files_examined, b1));
     sp->send(msg, len);
+    if (std::string progress
+        = FormatBackupProgress(njcr->fd_impl->progress.Snapshot(), false);
+        !progress.empty()) {
+      len = PmStrcpy(msg, progress.c_str());
+      sp->send(msg, len);
+    }
     if (njcr->JobFiles > 0) {
       {
         std::unique_lock l(njcr->mutex_guard());
@@ -281,6 +287,12 @@ static void ListRunningJobsApi(StatusPacket* sp)
     len = Mmsg(msg, " Files Examined=%s\n",
                edit_uint64(njcr->fd_impl->num_files_examined, b1));
     sp->send(msg, len);
+    if (std::string progress
+        = FormatBackupProgress(njcr->fd_impl->progress.Snapshot(), true);
+        !progress.empty()) {
+      len = PmStrcpy(msg, progress.c_str());
+      sp->send(msg, len);
+    }
     if (njcr->JobFiles > 0) {
       {
         std::unique_lock l(njcr->mutex_guard());

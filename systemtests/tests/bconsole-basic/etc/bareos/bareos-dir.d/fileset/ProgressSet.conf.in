@@ -1,0 +1,7 @@
+FileSet {
+  Name = "ProgressSet"
+  Description = "files for a backup that is slow enough to watch its progress"
+  Include {
+    File = "@tmpdir@/progress-data"
+  }
+}

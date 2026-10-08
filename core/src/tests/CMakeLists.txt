@@ -454,6 +454,10 @@ bareos_add_test(test_edit LINK_LIBRARIES Bareos::Lib GTest::gtest_main)
 
 if(NOT MSVC)
   bareos_add_test(
+    test_fd_backup_walker LINK_LIBRARIES Bareos::FD Bareos::Lib Bareos::Findlib
+                                         GTest::gtest_main
+  )
+  bareos_add_test(
     test_fd_plugins
     ADDITIONAL_SOURCES
       ${PROJECT_SOURCE_DIR}/src/filed/fd_plugins.cc
