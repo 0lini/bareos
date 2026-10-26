@@ -987,7 +987,7 @@
           "equals": true
         },
         "SelectionPattern": {
-          "datatype": "STRING_LIST",
+          "datatype": "STRING",
           "code": 0,
           "equals": true
         },
@@ -1468,7 +1468,7 @@
           "equals": true
         },
         "SelectionPattern": {
-          "datatype": "STRING_LIST",
+          "datatype": "STRING",
           "code": 0,
           "equals": true
         },

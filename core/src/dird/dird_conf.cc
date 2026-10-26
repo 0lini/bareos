@@ -345,7 +345,7 @@ const ResourceItem job_items[] = {
   { "RescheduleTimes", CFG_TYPE_PINT32, ITEM(res_job, RescheduleTimes), {config::DefaultValue{"5"}}},
   { "Priority", CFG_TYPE_PINT32, ITEM(res_job, Priority), {config::DefaultValue{"10"}}},
   { "AllowMixedPriority", CFG_TYPE_BOOL, ITEM(res_job, allow_mixed_priority), {config::DefaultValue{"false"}}},
-  { "SelectionPattern", CFG_TYPE_ALIST_STR, ITEM(res_job, selection_patterns), {}},
+  { "SelectionPattern", CFG_TYPE_STR, ITEM(res_job, selection_pattern), {}},
   { "RunScript", CFG_TYPE_RUNSCRIPT, ITEM(res_job, RunScripts), {config::UsesNoEquals{}}},
   { "SelectionType", CFG_TYPE_MIGTYPE, ITEM(res_job, selection_type), {}},
   { "Accurate", CFG_TYPE_BOOL, ITEM(res_job, accurate), {config::DefaultValue{"false"}}},
@@ -2249,7 +2249,6 @@ static bool UpdateResourcePointer(int type, const ResourceItem* items)
         p->verify_job = res_job->verify_job;
         p->jobdefs = res_job->jobdefs;
         p->run_cmds = res_job->run_cmds;
-        p->selection_patterns = res_job->selection_patterns;
         p->RunScripts = res_job->RunScripts;
         if ((p->RunScripts) && (p->RunScripts->size() > 0)) {
           for (int i = 0; items[i].name; i++) {
@@ -3884,7 +3883,7 @@ static void FreeResource(BareosResource* res, int type)
       if (p->add_suffix) { free(p->add_suffix); }
       if (p->RestoreBootstrap) { free(p->RestoreBootstrap); }
       if (p->WriteBootstrap) { free(p->WriteBootstrap); }
-      if (p->selection_patterns) { delete p->selection_patterns; }
+      if (p->selection_pattern) { free(p->selection_pattern); }
       if (p->run_cmds) { delete p->run_cmds; }
       if (p->storage) { delete p->storage; }
       if (p->FdPluginOptions) { delete p->FdPluginOptions; }

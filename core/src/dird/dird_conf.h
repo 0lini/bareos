@@ -424,7 +424,7 @@ class JobResource : public BareosResource {
   PoolResource* inc_pool = nullptr;   /**< Pool for Incremental backups */
   PoolResource* diff_pool = nullptr;  /**< Pool for Differental backups */
   PoolResource* next_pool = nullptr; /**< Next Pool for Copy/Migration Jobs and Virtual backups */
-  alist<const char*>* selection_patterns = nullptr; /**< Selection Patterns for Copy/Migration Jobs */
+  char* selection_pattern = nullptr;
   JobResource* verify_job = nullptr; /**< Job name to verify */
   JobResource* jobdefs = nullptr;    /**< Job defaults */
   alist<const char*>* run_cmds = nullptr;         /**< Run commands */
