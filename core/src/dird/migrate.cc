@@ -583,6 +583,12 @@ static inline bool FindJobidsOfPoolUncopiedJobs(JobControlRecord* jcr,
   return true;
 }
 
+static bool HasSelectionPatterns(JobControlRecord* jcr)
+{
+  alist<const char*>* patterns = jcr->dir_impl->res.job->selection_patterns;
+  return patterns && !patterns->empty();
+}
+
 static bool regex_find_jobids(JobControlRecord* jcr,
                               idpkt* ids,
                               const char* query1,
@@ -592,20 +598,21 @@ static bool regex_find_jobids(JobControlRecord* jcr,
   dlist<uitem>* item_chain;
   uitem* item = NULL;
   uitem* last_item = NULL;
-  regex_t preg{};
+  std::vector<regex_t> pregs;
   char prbuf[500];
   int rc;
   bool ok = false;
   PoolMem query(PM_MESSAGE);
 
   item_chain = new dlist<uitem>();
-  if (!jcr->dir_impl->res.job->selection_pattern) {
+  if (!HasSelectionPatterns(jcr)) {
     Jmsg(jcr, M_FATAL, 0, T_("No %s %s selection pattern specified.\n"),
          jcr->get_OperationName(), type);
     goto bail_out;
   }
-  Dmsg1(dbglevel, "regex-sel-pattern=%s\n",
-        jcr->dir_impl->res.job->selection_pattern);
+  for (const char* pattern : jcr->dir_impl->res.job->selection_patterns) {
+    Dmsg1(dbglevel, "regex-sel-pattern=%s\n", pattern);
+  }
 
   // Basic query for names
   Mmsg(query, query1, jcr->dir_impl->res.rpool->resource_name_);
@@ -623,18 +630,23 @@ static bool regex_find_jobids(JobControlRecord* jcr,
     ok = true;
     goto bail_out; /* skip regex match */
   } else {
-    // Compile regex expression
-    rc = regcomp(&preg, jcr->dir_impl->res.job->selection_pattern,
-                 REG_EXTENDED);
-    if (rc != 0) {
-      regerror(rc, &preg, prbuf, sizeof(prbuf));
-      Jmsg(jcr, M_FATAL, 0,
-           T_("Could not compile regex pattern \"%s\" ERR=%s\n"),
-           jcr->dir_impl->res.job->selection_pattern, prbuf);
-      goto bail_out;
+    // Compile regex expressions, reserve so compiled regexes are never moved
+    pregs.reserve(jcr->dir_impl->res.job->selection_patterns->size());
+    for (const char* pattern : jcr->dir_impl->res.job->selection_patterns) {
+      regex_t& preg = pregs.emplace_back();
+      rc = regcomp(&preg, pattern, REG_EXTENDED);
+      if (rc != 0) {
+        regerror(rc, &preg, prbuf, sizeof(prbuf));
+        pregs.pop_back();
+        Jmsg(jcr, M_FATAL, 0,
+             T_("Could not compile regex pattern \"%s\" ERR=%s\n"), pattern,
+             prbuf);
+        goto bail_out;
+      }
     }
 
-    // Now apply the regex to the names and remove any item not matched
+    /* Now apply the regexes to the names and remove any item not matched by
+     * at least one of them */
     foreach_dlist (item, item_chain) {
       if (last_item) {
         Dmsg1(dbglevel, "Remove item %s\n", last_item->item);
@@ -642,11 +654,12 @@ static bool regex_find_jobids(JobControlRecord* jcr,
         item_chain->remove(last_item);
       }
       Dmsg1(dbglevel, "get name Item=%s\n", item->item);
-      rc = regexec(&preg, item->item, 0, NULL, 0);
-      if (rc == 0) {
-        last_item = NULL; /* keep this one */
-      } else {
-        last_item = item;
+      last_item = item;
+      for (regex_t& preg : pregs) {
+        if (regexec(&preg, item->item, 0, NULL, 0) == 0) {
+          last_item = NULL; /* keep this one */
+          break;
+        }
       }
     }
 
@@ -655,8 +668,6 @@ static bool regex_find_jobids(JobControlRecord* jcr,
       Dmsg1(dbglevel, "Remove item %s\n", last_item->item);
       item_chain->remove(last_item);
     }
-
-    regfree(&preg);
   }
 
   if (item_chain->size() == 0) {
@@ -689,6 +700,7 @@ static bool regex_find_jobids(JobControlRecord* jcr,
   ok = true;
 
 bail_out:
+  for (regex_t& preg : pregs) { regfree(&preg); }
   Dmsg2(dbglevel, "Count=%" PRIu32 " Jobids=%s\n", ids->count, ids->list);
   foreach_dlist (item, item_chain) { free(item->item); }
   delete item_chain;
@@ -745,17 +757,20 @@ static inline bool getJobs_to_migrate(JobControlRecord* jcr)
       }
       break;
     case MT_SQLQUERY:
-      if (!jcr->dir_impl->res.job->selection_pattern) {
+      if (!HasSelectionPatterns(jcr)) {
         Jmsg(jcr, M_FATAL, 0, T_("No %s SQL selection pattern specified.\n"),
              jcr->get_OperationName());
         goto bail_out;
       }
-      Dmsg1(dbglevel, "SQL=%s\n", jcr->dir_impl->res.job->selection_pattern);
-      if (DbLocker _{jcr->db};
-          !jcr->db->SqlQuery(jcr->dir_impl->res.job->selection_pattern,
-                             UniqueDbidHandler, (void*)&ids)) {
-        Jmsg(jcr, M_FATAL, 0, T_("SQL failed. ERR=%s\n"), jcr->db->strerror());
-        goto bail_out;
+      // Each query adds its JobIds, so the result is the union of all queries
+      for (const char* sql : jcr->dir_impl->res.job->selection_patterns) {
+        Dmsg1(dbglevel, "SQL=%s\n", sql);
+        if (DbLocker _{jcr->db};
+            !jcr->db->SqlQuery(sql, UniqueDbidHandler, (void*)&ids)) {
+          Jmsg(jcr, M_FATAL, 0, T_("SQL failed. ERR=%s\n"),
+               jcr->db->strerror());
+          goto bail_out;
+        }
       }
       break;
     case MT_SMALLEST_VOL:
