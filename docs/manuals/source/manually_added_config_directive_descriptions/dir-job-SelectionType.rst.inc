@@ -31,3 +31,12 @@ PoolTime
 
 PoolUncopiedJobs
    This selection which copies all jobs from a pool to an other pool which were not copied before is available only for copy Jobs.
+
+Multiple Selection Types can be combined, either by specifying the directive multiple times or by giving a comma separated list. Each type selects its JobIds independently, and only JobIds selected by **all** of the types are copied or migrated. If more than one of the types uses the :config:option:`dir/job/SelectionPattern`\ , the same pattern is applied for each of them.
+
+For example, to copy only those jobs that have not been copied yet and whose job name starts with ``backup-web``:
+
+.. code-block:: bareosconfig
+
+   Selection Type = PoolUncopiedJobs, Job
+   Selection Pattern = "^backup-web"

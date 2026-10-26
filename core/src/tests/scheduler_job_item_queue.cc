@@ -72,30 +72,30 @@ TEST(scheduler_job_item_queue, priority_and_time)
   std::vector<JobResource> job_resources(4);
   std::vector<RunResource> run_resources(job_resources.size());
 
-  /* JobResource::selection_type is used here as a helper variable
+  /* JobResource::RescheduleTimes is used here as a helper variable
    * to store the expected place in the run order*/
 
   time_t runtime = now;
   run_resources[0].Priority = 10;
-  job_resources[0].selection_type = 1;  // runs first (see above)
+  job_resources[0].RescheduleTimes = 1;  // runs first (see above)
   scheduler_job_item_queue.EmplaceItem(unused, &job_resources[0],
                                        &run_resources[0], runtime,
                                        JobTrigger::kUndefined);
   runtime = now + 1;
   run_resources[1].Priority = 10;
-  job_resources[1].selection_type = 3;
+  job_resources[1].RescheduleTimes = 3;
   scheduler_job_item_queue.EmplaceItem(unused, &job_resources[1],
                                        &run_resources[1], runtime,
                                        JobTrigger::kUndefined);
   runtime = now + 1;
   run_resources[2].Priority = 11;
-  job_resources[2].selection_type = 4;  // runs last
+  job_resources[2].RescheduleTimes = 4;  // runs last
   scheduler_job_item_queue.EmplaceItem(unused, &job_resources[2],
                                        &run_resources[2], runtime,
                                        JobTrigger::kUndefined);
   runtime = now + 1;
   run_resources[3].Priority = 9;
-  job_resources[3].selection_type = 2;
+  job_resources[3].RescheduleTimes = 2;
   scheduler_job_item_queue.EmplaceItem(unused, &job_resources[3],
                                        &run_resources[3], runtime,
                                        JobTrigger::kUndefined);
@@ -104,8 +104,8 @@ TEST(scheduler_job_item_queue, priority_and_time)
   while (!scheduler_job_item_queue.Empty()) {
     auto job_item = scheduler_job_item_queue.TakeOutTopItem();
     ASSERT_TRUE(job_item.is_valid);
-    ASSERT_EQ(job_item.job->selection_type, item_position)
-        << "selection_type is used as "
+    ASSERT_EQ(job_item.job->RescheduleTimes, item_position)
+        << "RescheduleTimes is used as "
            "position parameter in this "
            "test";
     item_position++;

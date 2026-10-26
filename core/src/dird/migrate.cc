@@ -64,6 +64,9 @@
 
 #include "lib/bregex.h"
 
+#include <unordered_set>
+#include <vector>
+
 namespace directordaemon {
 
 /* Commands sent to other storage daemon */
@@ -696,50 +699,40 @@ bail_out:
 }
 
 /**
- * This is the central piece of code that finds jobs actually JobIds to migrate.
- * It examines the Selection Type to see what kind of migration we are doing
- * (Volume, Job, Client, ...) and applies any Selection Pattern if appropriate
- * to obtain a list of JobIds.
- *
- * Finally, it will loop over all the JobIds found, starting a new job with
- * MigrationJobId set to that JobId.
+ * Find the JobIds selected by a single Selection Type and add them to ids.
  *
  * Returns: false - On error
- *          true - If OK
+ *          true - If OK (ids may be empty)
  */
-static inline bool getJobs_to_migrate(JobControlRecord* jcr)
+static bool FindJobidsOfSelectionType(JobControlRecord* jcr,
+                                      uint32_t selection_type,
+                                      idpkt* ids)
 {
   const char* p;
   int status;
-  int limit = -1;
-  bool apply_limit = false;
   bool retval = false;
-  JobId_t JobId;
   db_int64_ctx ctx;
-  idpkt ids, mid, jids;
+  idpkt mid, jids;
   char ed1[30], ed2[30];
   PoolMem query(PM_MESSAGE);
 
-  ids.list = GetPoolMemory(PM_MESSAGE);
-  ids.list[0] = 0;
-  ids.count = 0;
   mid.list = NULL;
   jids.list = NULL;
 
-  switch (jcr->dir_impl->res.job->selection_type) {
+  switch (selection_type) {
     case MT_JOB:
-      if (!regex_find_jobids(jcr, &ids, sql_job, sql_jobids_from_job, "Job")) {
+      if (!regex_find_jobids(jcr, ids, sql_job, sql_jobids_from_job, "Job")) {
         goto bail_out;
       }
       break;
     case MT_CLIENT:
-      if (!regex_find_jobids(jcr, &ids, sql_client, sql_jobids_from_client,
+      if (!regex_find_jobids(jcr, ids, sql_client, sql_jobids_from_client,
                              "Client")) {
         goto bail_out;
       }
       break;
     case MT_VOLUME:
-      if (!regex_find_jobids(jcr, &ids, sql_vol, sql_jobids_from_vol,
+      if (!regex_find_jobids(jcr, ids, sql_vol, sql_jobids_from_vol,
                              "Volume")) {
         goto bail_out;
       }
@@ -753,19 +746,19 @@ static inline bool getJobs_to_migrate(JobControlRecord* jcr)
       Dmsg1(dbglevel, "SQL=%s\n", jcr->dir_impl->res.job->selection_pattern);
       if (DbLocker _{jcr->db};
           !jcr->db->SqlQuery(jcr->dir_impl->res.job->selection_pattern,
-                             UniqueDbidHandler, (void*)&ids)) {
+                             UniqueDbidHandler, (void*)ids)) {
         Jmsg(jcr, M_FATAL, 0, T_("SQL failed. ERR=%s\n"), jcr->db->strerror());
         goto bail_out;
       }
       break;
     case MT_SMALLEST_VOL:
-      if (!find_mediaid_then_jobids(jcr, &ids, sql_smallest_vol,
+      if (!find_mediaid_then_jobids(jcr, ids, sql_smallest_vol,
                                     "Smallest Volume")) {
         goto bail_out;
       }
       break;
     case MT_OLDEST_VOL:
-      if (!find_mediaid_then_jobids(jcr, &ids, sql_oldest_vol,
+      if (!find_mediaid_then_jobids(jcr, ids, sql_oldest_vol,
                                     "Oldest Volume")) {
         goto bail_out;
       }
@@ -811,32 +804,32 @@ static inline bool getJobs_to_migrate(JobControlRecord* jcr)
 
       Dmsg0(dbglevel, "We should do Occupation migration.\n");
 
-      ids.count = 0;
+      ids->count = 0;
       // Find a list of MediaIds that could be migrated
       Mmsg(query, sql_mediaids, jcr->dir_impl->res.rpool->resource_name_);
       Dmsg1(dbglevel, "query=%s\n", query.c_str());
 
       if (DbLocker _{jcr->db};
-          !jcr->db->SqlQuery(query.c_str(), UniqueDbidHandler, (void*)&ids)) {
+          !jcr->db->SqlQuery(query.c_str(), UniqueDbidHandler, (void*)ids)) {
         Jmsg(jcr, M_FATAL, 0, T_("SQL failed. ERR=%s\n"), jcr->db->strerror());
         goto bail_out;
       }
 
-      if (ids.count == 0) {
+      if (ids->count == 0) {
         Jmsg(jcr, M_INFO, 0, T_("No Volumes found to %s.\n"),
              jcr->get_ActionName());
         retval = true;
         goto bail_out;
       }
 
-      Dmsg2(dbglevel, "Pool Occupancy ids=%" PRIu32 " MediaIds=%s\n", ids.count,
-            ids.list);
+      Dmsg2(dbglevel, "Pool Occupancy ids=%" PRIu32 " MediaIds=%s\n",
+            ids->count, ids->list);
 
-      if (!FindJobidsFromMediaidList(jcr, &ids, "Volume")) { goto bail_out; }
+      if (!FindJobidsFromMediaidList(jcr, ids, "Volume")) { goto bail_out; }
 
       // ids == list of jobs
-      p = ids.list;
-      for (int i = 0; i < (int)ids.count; i++) {
+      p = ids->list;
+      for (int i = 0; i < (int)ids->count; i++) {
         status = GetNextDbidFromList(&p, &DBId);
         Dmsg2(dbglevel, "get_next_dbid status=%d JobId=%" PRIdbid "\n", status,
               DBId);
@@ -877,10 +870,10 @@ static inline bool getJobs_to_migrate(JobControlRecord* jcr)
       }
 
       // Transfer jids to ids, where the jobs list is expected
-      ids.count = jids.count;
-      PmStrcpy(ids.list, jids.list);
-      Dmsg2(dbglevel, "Pool Occupancy ids=%" PRIu32 " JobIds=%s\n", ids.count,
-            ids.list);
+      ids->count = jids.count;
+      PmStrcpy(ids->list, jids.list);
+      Dmsg2(dbglevel, "Pool Occupancy ids=%" PRIu32 " JobIds=%s\n", ids->count,
+            ids->list);
       break;
     }
     case MT_POOL_TIME: {
@@ -890,34 +883,126 @@ static inline bool getJobs_to_migrate(JobControlRecord* jcr)
       ttime = time(NULL) - (time_t)jcr->dir_impl->res.rpool->MigrationTime;
       bstrutime(dt, sizeof(dt), ttime);
 
-      ids.count = 0;
+      ids->count = 0;
       Mmsg(query, sql_pool_time, jcr->dir_impl->res.rpool->resource_name_, dt);
       Dmsg1(dbglevel, "query=%s\n", query.c_str());
 
       if (DbLocker _{jcr->db};
-          !jcr->db->SqlQuery(query.c_str(), UniqueDbidHandler, (void*)&ids)) {
+          !jcr->db->SqlQuery(query.c_str(), UniqueDbidHandler, (void*)ids)) {
         Jmsg(jcr, M_FATAL, 0, T_("SQL failed. ERR=%s\n"), jcr->db->strerror());
         goto bail_out;
       }
 
-      if (ids.count == 0) {
+      if (ids->count == 0) {
         Jmsg(jcr, M_INFO, 0, T_("No Volumes found to %s.\n"),
              jcr->get_ActionName());
         retval = true;
         goto bail_out;
       }
 
-      Dmsg2(dbglevel, "PoolTime ids=%" PRIu32 " JobIds=%s\n", ids.count,
-            ids.list);
+      Dmsg2(dbglevel, "PoolTime ids=%" PRIu32 " JobIds=%s\n", ids->count,
+            ids->list);
       break;
     }
     case MT_POOL_UNCOPIED_JOBS:
-      if (!FindJobidsOfPoolUncopiedJobs(jcr, &ids)) { goto bail_out; }
+      if (!FindJobidsOfPoolUncopiedJobs(jcr, ids)) { goto bail_out; }
       break;
     default:
       Jmsg(jcr, M_FATAL, 0, T_("Unknown %s Selection Type.\n"),
            jcr->get_OperationName());
       goto bail_out;
+  }
+
+  retval = true;
+
+bail_out:
+  if (mid.list) { FreePoolMemory(mid.list); }
+
+  if (jids.list) { FreePoolMemory(jids.list); }
+
+  return retval;
+}
+
+
+// Keep only the JobIds in ids that are also contained in other
+static void IntersectJobids(idpkt* ids, const idpkt& other)
+{
+  std::unordered_set<JobId_t> other_jobids;
+  JobId_t JobId = 0;
+  const char* p = other.list;
+  while (GetNextJobidFromList(&p, &JobId) > 0) { other_jobids.insert(JobId); }
+
+  PoolMem intersection(PM_MESSAGE);
+  uint32_t count = 0;
+  char ed1[50];
+  p = ids->list;
+  while (GetNextJobidFromList(&p, &JobId) > 0) {
+    if (other_jobids.count(JobId) == 0) { continue; }
+    if (count > 0) { PmStrcat(intersection, ","); }
+    PmStrcat(intersection, edit_uint64(JobId, ed1));
+    count++;
+  }
+
+  PmStrcpy(ids->list, intersection.c_str());
+  ids->count = count;
+}
+
+/**
+ * This is the central piece of code that finds jobs actually JobIds to migrate.
+ * It examines the Selection Types to see what kind of migration we are doing
+ * (Volume, Job, Client, ...) and applies any Selection Pattern if appropriate
+ * to obtain a list of JobIds. With multiple Selection Types only the JobIds
+ * found by all of them are used.
+ *
+ * Finally, it will loop over all the JobIds found, starting a new job with
+ * MigrationJobId set to that JobId.
+ *
+ * Returns: false - On error
+ *          true - If OK
+ */
+static inline bool getJobs_to_migrate(JobControlRecord* jcr)
+{
+  const char* p;
+  int status;
+  int limit = -1;
+  bool apply_limit = false;
+  bool retval = false;
+  JobId_t JobId;
+  idpkt ids;
+
+  const std::vector<uint32_t>& selection_types
+      = jcr->dir_impl->res.job->selection_types;
+
+  ids.list = GetPoolMemory(PM_MESSAGE);
+  ids.list[0] = 0;
+  ids.count = 0;
+
+  if (selection_types.empty()) {
+    Jmsg(jcr, M_FATAL, 0, T_("No %s Selection Type specified.\n"),
+         jcr->get_OperationName());
+    goto bail_out;
+  }
+
+  /* With multiple Selection Types, only the JobIds selected by all of them
+   * are used */
+  for (size_t i = 0; i < selection_types.size(); i++) {
+    if (i == 0) {
+      if (!FindJobidsOfSelectionType(jcr, selection_types[i], &ids)) {
+        goto bail_out;
+      }
+    } else {
+      idpkt other;
+      other.list = GetPoolMemory(PM_MESSAGE);
+      other.list[0] = 0;
+      other.count = 0;
+      bool ok = FindJobidsOfSelectionType(jcr, selection_types[i], &other);
+      if (ok) { IntersectJobids(&ids, other); }
+      FreePoolMemory(other.list);
+      if (!ok) { goto bail_out; }
+      Dmsg2(dbglevel, "After intersection count=%" PRIu32 " ids=%s\n",
+            ids.count, ids.list);
+    }
+    if (ids.count == 0) { break; }
   }
 
   if (ids.count == 0) {
@@ -971,10 +1056,6 @@ static inline bool getJobs_to_migrate(JobControlRecord* jcr)
 
 bail_out:
   FreePoolMemory(ids.list);
-
-  if (mid.list) { FreePoolMemory(mid.list); }
-
-  if (jids.list) { FreePoolMemory(jids.list); }
 
   return retval;
 }

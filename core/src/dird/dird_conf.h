@@ -378,7 +378,7 @@ class JobResource : public BareosResource {
   uint32_t RestoreJobId = 0;   /**< What -- JobId to restore */
   int32_t RescheduleTimes = 0; /**< Number of times to reschedule job */
   uint32_t replace = 0;        /**< How (overwrite, ..) */
-  uint32_t selection_type = 0;
+  std::vector<uint32_t> selection_types; /**< Selection Types for Copy/Migration Jobs */
 
   char* RestoreWhere = nullptr;  /**< Where on disk to restore -- directory */
   char* RegexWhere = nullptr;    /**< RegexWhere option */

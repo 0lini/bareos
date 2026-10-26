@@ -70,6 +70,7 @@
 #include "lib/output_formatter_resource.h"
 #include "lib/version.h"
 
+#include <algorithm>
 #include <cassert>
 #include <memory>
 #include <string>
@@ -347,7 +348,7 @@ const ResourceItem job_items[] = {
   { "AllowMixedPriority", CFG_TYPE_BOOL, ITEM(res_job, allow_mixed_priority), {config::DefaultValue{"false"}}},
   { "SelectionPattern", CFG_TYPE_STR, ITEM(res_job, selection_pattern), {}},
   { "RunScript", CFG_TYPE_RUNSCRIPT, ITEM(res_job, RunScripts), {config::UsesNoEquals{}}},
-  { "SelectionType", CFG_TYPE_MIGTYPE, ITEM(res_job, selection_type), {}},
+  { "SelectionType", CFG_TYPE_MIGTYPE, ITEM(res_job, selection_types), {}},
   { "Accurate", CFG_TYPE_BOOL, ITEM(res_job, accurate), {config::DefaultValue{"false"}}},
   { "AllowDuplicateJobs", CFG_TYPE_BOOL, ITEM(res_job, AllowDuplicateJobs), {config::DefaultValue{"true"}}},
   { "AllowHigherDuplicates", CFG_TYPE_BOOL, ITEM(res_job, AllowHigherDuplicates), {config::DeprecatedSince{24, 0, 0}, config::DefaultValue{"true"}}},
@@ -996,6 +997,13 @@ static void PropagateResource(const ResourceItem* items,
           SetBit(i, dest->inherit_content_);
           break;
         }
+        case CFG_TYPE_MIGTYPE: {
+          *(std::vector<uint32_t>*)((char*)dest + offset)
+              = *(std::vector<uint32_t>*)((char*)(source) + offset);
+          dest->SetMemberPresent(items[i].name);
+          SetBit(i, dest->inherit_content_);
+          break;
+        }
         case CFG_TYPE_ALIST_STR: {
           alist<const char*>*orig_list, **new_list;
 
@@ -1068,7 +1076,6 @@ static void PropagateResource(const ResourceItem* items,
         case CFG_TYPE_LEVEL:
         case CFG_TYPE_INT32:
         case CFG_TYPE_SIZE32:
-        case CFG_TYPE_MIGTYPE:
         case CFG_TYPE_REPLACE: {
           uint32_t *def_ivalue, *ivalue;
 
@@ -2483,25 +2490,35 @@ static void StoreDevice(lexer* lc,
   ClearBit(index, (*item->allocated_resource)->inherit_content_);
 }
 
-// Store Migration/Copy type
+// Store Migration/Copy types, multiple types can be given comma separated
 static void StoreMigtype(lexer* lc, const ResourceItem* item, int index)
 {
-  LexGetToken(lc, BCT_NAME);
-  // Store the type both in pass 1 and pass 2
-  bool found = false;
-  for (int i = 0; migtypes[i].type_name; i++) {
-    if (Bstrcasecmp(lc->str, migtypes[i].type_name)) {
-      SetItemVariable<uint32_t>(*item, migtypes[i].job_type);
-      found = true;
-      break;
+  auto& selection_types = GetItemVariable<std::vector<uint32_t>&>(*item);
+  // Store the types both in pass 1 and pass 2
+  int token = BCT_COMMA;
+  while (token == BCT_COMMA) {
+    LexGetToken(lc, BCT_NAME);
+    bool found = false;
+    for (int i = 0; migtypes[i].type_name; i++) {
+      if (Bstrcasecmp(lc->str, migtypes[i].type_name)) {
+        if (std::find(selection_types.begin(), selection_types.end(),
+                      migtypes[i].job_type)
+            == selection_types.end()) {
+          selection_types.push_back(migtypes[i].job_type);
+        }
+        found = true;
+        break;
+      }
     }
+
+    if (!found) {
+      scan_err(lc, T_("Expected a Migration Job Type keyword, got: %s"),
+               lc->str);
+      return;
+    }
+    token = LexGetToken(lc, BCT_ALL);
   }
 
-  if (!found) {
-    scan_err(lc, T_("Expected a Migration Job Type keyword, got: %s"), lc->str);
-  }
-
-  ScanToEol(lc);
   item->SetPresent();
   ClearBit(index, (*item->allocated_resource)->inherit_content_);
 }
@@ -3343,7 +3360,7 @@ static bool HasDefaultValue(const ResourceItem& item)
       break;
     }
     case CFG_TYPE_MIGTYPE: {
-      is_default = HasDefaultValue(item, migtypes);
+      is_default = GetItemVariable<std::vector<uint32_t>&>(item).empty();
       break;
     }
     case CFG_TYPE_REPLACE: {
@@ -3462,15 +3479,20 @@ static void PrintConfigCb(const ResourceItem& item,
       break;
     }
     case CFG_TYPE_MIGTYPE: {
-      uint32_t migtype = GetItemVariable<uint32_t>(item);
-
-      if (migtype) {
+      std::vector<std::string> names;
+      for (uint32_t migtype : GetItemVariable<std::vector<uint32_t>&>(item)) {
         for (int j = 0; migtypes[j].type_name; j++) {
           if (migtypes[j].job_type == migtype) {
-            send.KeyString(item.name, migtypes[j].type_name, inherited);
+            names.emplace_back(migtypes[j].type_name);
             break;
           }
         }
+      }
+      // A single type is printed as a plain value to keep the output stable
+      if (names.size() == 1) {
+        send.KeyString(item.name, names.front(), inherited);
+      } else if (names.size() > 1) {
+        send.KeyMultipleStringsOnePerLine(item.name, names, inherited, false);
       }
       break;
     }

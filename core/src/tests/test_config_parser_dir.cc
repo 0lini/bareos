@@ -28,6 +28,7 @@
 #include "lib/parse_conf.h"
 #include "dird/dird_globals.h"
 #include "dird/dird_conf.h"
+#include "include/migration_selection_types.h"
 #include "lib/output_formatter_resource.h"
 #include "testing_dir_common.h"
 
@@ -294,6 +295,36 @@ TEST_F(ConfigParser_Dir, CFG_TYPE_ALIST_STR)
   test_config_directive_type(test_CFG_TYPE_ALIST_STR);
 }
 
+
+static std::vector<uint32_t> GetSelectionTypes(const char* job_name,
+                                               int type = R_JOB)
+{
+  JobResource* job = (JobResource*)my_config->GetResWithName(type, job_name);
+  EXPECT_NE(job, nullptr);
+  if (!job) { return {}; }
+  return job->selection_types;
+}
+
+void test_CFG_TYPE_MIGTYPE(DirectorResource*)
+{
+  using ::testing::ElementsAre;
+  ASSERT_TRUE(PopulateDefs());  // propagate the JobDefs like the director
+  EXPECT_THAT(GetSelectionTypes("single"), ElementsAre(MT_JOB));
+  EXPECT_THAT(GetSelectionTypes("list"),
+              ElementsAre(MT_POOL_UNCOPIED_JOBS, MT_CLIENT));
+  EXPECT_THAT(GetSelectionTypes("multiple-lines"),
+              ElementsAre(MT_POOL_UNCOPIED_JOBS, MT_JOB));
+  EXPECT_THAT(GetSelectionTypes("jobdefs", R_JOBDEFS),
+              ElementsAre(MT_POOL_TIME, MT_VOLUME));
+  EXPECT_THAT(GetSelectionTypes("inherited"),
+              ElementsAre(MT_POOL_TIME, MT_VOLUME));
+  EXPECT_THAT(GetSelectionTypes("overridden"), ElementsAre(MT_SQLQUERY));
+}
+
+TEST_F(ConfigParser_Dir, CFG_TYPE_MIGTYPE)
+{
+  test_config_directive_type(test_CFG_TYPE_MIGTYPE);
+}
 
 void test_CFG_TYPE_ALIST_RES(DirectorResource*)
 {
